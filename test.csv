@@ -1,3 +1,4 @@
 "city","city_ascii","lat","lng","country","iso2","iso3","admin_name","capital","population","id"
 "Gainesville","Gainesville","29.6804","-82.3459","United States","US","USA","Florida","","220929","1840014022"
 "Tampa","Tampa","27.9945","-82.4447","United States","US","USA","Florida","","2861173","1840015982"
+"Miami","Miami","25.7840","-80.2101","United States","US","USA","Florida","","6080145","1840015149"
