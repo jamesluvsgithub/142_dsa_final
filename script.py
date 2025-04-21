@@ -68,6 +68,8 @@ def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> int:
 def get_neighbors(cities: list, base_city: City):
   '''
   given a city, returns a list of cities that are within 1000km from it
+
+  PROBLEM: the algos call this function way too much, which makes them too slow
   '''
   close_cities = []
 
@@ -77,16 +79,17 @@ def get_neighbors(cities: list, base_city: City):
       close_cities.append(city)
   return close_cities
 
-def build_graph(cities: list, max_distance_km: int) -> networkx.Graph:
+def build_graph(cities: list) -> networkx.Graph:
   '''
   builds the initial graph (undirected, weighted) using the networkx library
   
-  only adds vertices whose edges are < 1000 (city is within 1000km from the start node)
+  only adds vertices whose edges are < 1000 (city is within 1000 km from the start node)
   '''
+  max_distance_km = 1000
   graph = networkx.Graph()
   cities_new = []
   for city in cities:
-    if (city.dist_from_start < 1000):
+    if city.dist_from_start <= max_distance_km:
       graph.add_node(city.name, city_data=city)
       # city_data is the City object
       cities_new.append(city)
@@ -230,14 +233,14 @@ def bellman_ford(graph: networkx.Graph, cities: list, start_name: str, target_na
 def compare_algos(start_name: str, start_admin_name: str, target_name: str, file_name: str):
   
   cities = get_all_cities(start_name, start_admin_name, file_name)
-  graph = build_graph(cities, 10000)
+  graph = build_graph(cities)
   print('\nusing dijkstra...')
   path, distance = dijkstra(graph, cities, start_name, target_name)
   print(f'shortest path: {path}')
   print(f'total distance: {distance:.2f} km\n')
 
   cities = get_all_cities(start_name, start_admin_name, file_name)
-  graph = build_graph(cities, 10000)
+  graph = build_graph(cities)
   print('\nusing bellman-ford...')
   path, distance = bellman_ford(graph, cities, start_name, target_name)
   print(f'shortest path: {path}')
