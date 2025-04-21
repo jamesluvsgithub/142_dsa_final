@@ -90,10 +90,6 @@ def build_graph(cities: list, max_distance_km: int) -> networkx.Graph:
       # city_data is the City object
       cities_new.append(city)
 
-  for node, data in graph.nodes(data=True):
-    city = data["city_data"]
-    print(f"{node}: {city.latitude}, {city.longitude}")
-
   for i, city1 in enumerate(cities_new):
     for j, city2 in enumerate(cities_new):
       if i < j:  # Avoid self-loops and redundant comparisons
@@ -126,7 +122,6 @@ def dijkstra(graph: networkx.Graph, cities: list, start_name: str, target_name: 
         if current == target_name:
             break
 
-        # Get neighbors dynamically based on the current city
         current_city = graph.nodes[current]['city_data']
         neighbors = get_neighbors(cities, current_city)
 
@@ -134,11 +129,9 @@ def dijkstra(graph: networkx.Graph, cities: list, start_name: str, target_name: 
           if neighbor.name in visited:
               continue
 
-          # Lazily add neighbor to the graph if not already present
           if neighbor.name not in graph:
               graph.add_node(neighbor.name, city_data=neighbor)
 
-          # Lazily add edge if it doesn't already exist
           if not graph.has_edge(current, neighbor.name):
               graph.add_edge(current, neighbor.name, weight=haversine(
                   current_city.latitude, current_city.longitude,
@@ -155,21 +148,102 @@ def dijkstra(graph: networkx.Graph, cities: list, start_name: str, target_name: 
               previous[neighbor.name] = current
               heapq.heappush(queue, (new_dist, neighbor.name))
 
-    # Reconstruct shortest path
+    # reconstructing the shortest path
     path = []
     current = target_name
     while current in previous:
-        path.append(current)
-        current = previous[current]
+        prev = previous[current]
+        weight = graph[prev][current]['weight']
+        path.append((current, weight))
+        current = prev
     if current == start_name:
-        path.append(start_name)
+        path.append((start_name, 0))
+        path.reverse()
+        return path, distances[target_name]
+    else:
+        return None, float('inf')
+    
+
+def bellman_ford(graph: networkx.Graph, cities: list, start_name: str, target_name: str):
+    distances = {start_name: 0}
+    previous = {}
+    visited = set()
+
+    # Start with the first node
+    nodes = set([start_name])
+    all_nodes = set([start_name])
+
+    # Maximum iterations = number of cities - 1 (Bellman-Ford constraint)
+    for _ in range(len(cities) - 1):
+        updated = False
+        new_nodes = set()
+
+        for u in list(nodes):
+            if u in visited:
+                continue
+            visited.add(u)
+
+            current_city = graph.nodes[u]["city_data"]
+            neighbors = get_neighbors(cities, current_city)
+
+            for neighbor in neighbors:
+                v = neighbor.name
+
+                # Add to graph if not present
+                if v not in graph:
+                    graph.add_node(v, city_data=neighbor)
+
+                # Add edge if missing
+                if not graph.has_edge(u, v):
+                    weight = haversine(current_city.latitude, current_city.longitude, neighbor.latitude, neighbor.longitude)
+                    graph.add_edge(u, v, weight=weight)
+                else:
+                    weight = graph[u][v]['weight']
+
+                if v not in distances:
+                    distances[v] = float('inf')
+
+                if distances[u] + weight < distances[v]:
+                    distances[v] = distances[u] + weight
+                    previous[v] = u
+                    updated = True
+                    new_nodes.add(v)
+                    all_nodes.add(v)
+
+        if not updated:
+            break
+        nodes = new_nodes
+
+    # Reconstruct path
+    path = []
+    current = target_name
+    while current in previous:
+        prev = previous[current]
+        weight = graph[prev][current]['weight']
+        path.append((current, weight))
+        current = prev
+    if current == start_name:
+        path.append((start_name, 0))
         path.reverse()
         return path, distances[target_name]
     else:
         return None, float('inf')
 
-cities = get_all_cities('Gainesville', 'Florida')
-graph = build_graph(cities, 10000)
-path, distance = dijkstra(graph, cities, "Gainesville", "Miami")
-print(f"Shortest path: {path}")
-print(f"Total distance: {distance:.2f} km")
+def main():
+  cities = get_all_cities('Gainesville', 'Florida')
+  graph = build_graph(cities, 10000)
+  print("\nusing dijkstra...")
+  path, distance = dijkstra(graph, cities, "Gainesville", "Tampa")
+
+  print(f"Shortest path: {path}")
+  print(f"Total distance: {distance:.2f} km\n")
+
+  cities = get_all_cities('Gainesville', 'Florida')
+  graph = build_graph(cities, 10000)
+  print("\nusing bellman-ford...")
+  path, distance = bellman_ford(graph, cities, "Gainesville", "Tampa")
+  print(f"Shortest path: {path}")
+  print(f"Total distance: {distance:.2f} km\n")
+
+if __name__ == '__main__':
+   main()
