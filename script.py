@@ -41,14 +41,15 @@ def get_all_cities(start_name: str, start_admin_name: str, file_name: str) -> li
       dist_from_start = haversine(lat, lng, start_lat, start_lng)
       cities.append(City(name, admin_name, lat, lng, dist_from_start))
 
-  # Sort by distance from start
   cities.sort(key=lambda city: city.dist_from_start)
   
   return cities
 
-# used to get distance between points (for edge weights)
-# obtained from here https://www.geeksforgeeks.org/haversine-formula-to-find-distance-between-two-points-on-a-sphere/
 def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> int:
+  '''
+  used to get distance between points (for edge weights)
+  obtained from here https://www.geeksforgeeks.org/haversine-formula-to-find-distance-between-two-points-on-a-sphere/
+  '''
   dLat = (lat2 - lat1) * math.pi / 180.0
   dLon = (lon2 - lon1) * math.pi / 180.0
 
