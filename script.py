@@ -13,7 +13,7 @@ class City:
     self.dist_from_start = dist_from_start
 
 def get_all_cities(start_name: str, start_admin_name: str, file_name: str) -> list:
-  cities = []
+  cities = list()
   start_lat = None
   start_lng = None
 
@@ -30,16 +30,16 @@ def get_all_cities(start_name: str, start_admin_name: str, file_name: str) -> li
       break
 
   for row in rows:
-      name = row['city']
-      admin_name = row['admin_name']
+    name = row['city']
+    admin_name = row['admin_name']
 
-      if name == start_name and admin_name == start_admin_name:
-          continue
+    if name == start_name and admin_name == start_admin_name:
+      continue
 
-      lat = float(row['lat'])
-      lng = float(row['lng'])
-      dist_from_start = haversine(lat, lng, start_lat, start_lng)
-      cities.append(City(name, admin_name, lat, lng, dist_from_start))
+    lat = float(row['lat'])
+    lng = float(row['lng'])
+    dist_from_start = haversine(lat, lng, start_lat, start_lng)
+    cities.append(City(name, admin_name, lat, lng, dist_from_start))
 
   cities.sort(key=lambda city: city.dist_from_start)
   
@@ -59,8 +59,8 @@ def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> int:
 
   # apply formulae
   a = (pow(math.sin(dLat / 2), 2) +
-        pow(math.sin(dLon / 2), 2) *
-            math.cos(lat1) * math.cos(lat2))
+    pow(math.sin(dLon / 2), 2) *
+      math.cos(lat1) * math.cos(lat2))
   rad = 6371
   c = 2 * math.asin(math.sqrt(a))
   return rad * c
@@ -71,7 +71,7 @@ def get_neighbors(cities: list, base_city: City):
 
   PROBLEM: the algos call this function way too much, which makes them too slow
   '''
-  close_cities = []
+  close_cities = list()
 
   for city in cities:
     dist = haversine(base_city.latitude, base_city.longitude, city.latitude, city.longitude)
@@ -87,7 +87,7 @@ def build_graph(cities: list) -> networkx.Graph:
   '''
   max_distance_km = 1000
   graph = networkx.Graph()
-  cities_new = []
+  cities_new = list()
   for city in cities:
     if city.dist_from_start <= max_distance_km:
       graph.add_node(city.name, city_data=city)
@@ -104,131 +104,131 @@ def build_graph(cities: list) -> networkx.Graph:
   return graph
 
 def dijkstra(graph: networkx.Graph, cities: list, start_name: str, target_name: str):
-    queue = [(0, start_name)]
-    
-    # distance map
-    distances = {node: float('inf') for node in graph.nodes}
-    distances[start_name] = 0
+  queue = [(0, start_name)]
+  
+  # distance map
+  distances = {node: float('inf') for node in graph.nodes}
+  distances[start_name] = 0
 
-    # predecessor map (to reconstruct path)
-    previous = {}
-    visited = set()
+  # predecessor map (to reconstruct path)
+  previous = dict()
+  visited = set()
 
-    while queue:
-        current_dist, current = heapq.heappop(queue)
+  while queue:
+    current_dist, current = heapq.heappop(queue)
 
-        if current in visited:
-            continue
-        visited.add(current)
+    if current in visited:
+      continue
+    visited.add(current)
 
-        if current == target_name:
-            break
+    if current == target_name:
+      break
 
-        current_city = graph.nodes[current]['city_data']
-        neighbors = get_neighbors(cities, current_city)
+    current_city = graph.nodes[current]['city_data']
+    neighbors = get_neighbors(cities, current_city)
 
-        for neighbor in neighbors:
-          if neighbor.name in visited:
-              continue
+    for neighbor in neighbors:
+      if neighbor.name in visited:
+        continue
 
-          if neighbor.name not in graph:
-              graph.add_node(neighbor.name, city_data=neighbor)
+      if neighbor.name not in graph:
+        graph.add_node(neighbor.name, city_data=neighbor)
 
-          if not graph.has_edge(current, neighbor.name):
-              graph.add_edge(current, neighbor.name, weight=haversine(
-                  current_city.latitude, current_city.longitude,
-                  neighbor.latitude, neighbor.longitude))
+      if not graph.has_edge(current, neighbor.name):
+        graph.add_edge(current, neighbor.name, weight=haversine(
+          current_city.latitude, current_city.longitude,
+          neighbor.latitude, neighbor.longitude))
 
-          distance = graph[current][neighbor.name]['weight']
-          new_dist = current_dist + distance
+      distance = graph[current][neighbor.name]['weight']
+      new_dist = current_dist + distance
 
-          if neighbor.name not in distances:
-              distances[neighbor.name] = float('inf')
-          
-          if new_dist < distances[neighbor.name]:
-              distances[neighbor.name] = new_dist
-              previous[neighbor.name] = current
-              heapq.heappush(queue, (new_dist, neighbor.name))
+      if neighbor.name not in distances:
+        distances[neighbor.name] = float('inf')
+      
+      if new_dist < distances[neighbor.name]:
+        distances[neighbor.name] = new_dist
+        previous[neighbor.name] = current
+        heapq.heappush(queue, (new_dist, neighbor.name))
 
-    # reconstructing the shortest path
-    path = []
-    current = target_name
-    while current in previous:
-        prev = previous[current]
-        weight = graph[prev][current]['weight']
-        path.append((current, weight))
-        current = prev
-    if current == start_name:
-        path.append((start_name, 0))
-        path.reverse()
-        return path, distances[target_name]
-    else:
-        return None, float('inf')
+  # reconstructing the shortest path
+  path = list()
+  current = target_name
+  while current in previous:
+    prev = previous[current]
+    weight = graph[prev][current]['weight']
+    path.append((current, weight))
+    current = prev
+  if current == start_name:
+    path.append((start_name, 0))
+    path.reverse()
+    return path, distances[target_name]
+  else:
+    return None, float('inf')
     
 
 def bellman_ford(graph: networkx.Graph, cities: list, start_name: str, target_name: str):
-    distances = {start_name: 0}
-    previous = {}
-    visited = set()
+  distances = {start_name: 0}
+  previous = dict()
+  visited = set()
 
-    nodes = set([start_name])
-    all_nodes = set([start_name])
+  nodes = set([start_name])
+  all_nodes = set([start_name])
 
-    # max iterations = # of cities - 1 (bellman-ford constraint)
-    for _ in range(len(cities) - 1):
-        updated = False
-        new_nodes = set()
+  # max iterations = # of cities - 1 (bellman-ford constraint)
+  for _ in range(len(cities) - 1):
+    updated = False
+    new_nodes = set()
 
-        for u in list(nodes):
-            if u in visited:
-                continue
-            visited.add(u)
+    for u in list(nodes):
+      if u in visited:
+        continue
+      visited.add(u)
 
-            current_city = graph.nodes[u]['city_data']
-            neighbors = get_neighbors(cities, current_city)
+      current_city = graph.nodes[u]['city_data']
+      neighbors = get_neighbors(cities, current_city)
 
-            for neighbor in neighbors:
-                v = neighbor.name
+      for neighbor in neighbors:
+        v = neighbor.name
 
-                # add to graph if not present
-                if v not in graph:
-                    graph.add_node(v, city_data=neighbor)
+        # add to graph if not present
+        if v not in graph:
+          graph.add_node(v, city_data=neighbor)
 
-                # add edge if missing
-                if not graph.has_edge(u, v):
-                    weight = haversine(current_city.latitude, current_city.longitude, neighbor.latitude, neighbor.longitude)
-                    graph.add_edge(u, v, weight=weight)
-                else:
-                    weight = graph[u][v]['weight']
+        # add edge if missing
+        if not graph.has_edge(u, v):
+          weight = haversine(current_city.latitude, current_city.longitude, neighbor.latitude, neighbor.longitude)
+          graph.add_edge(u, v, weight=weight)
+        else:
+          weight = graph[u][v]['weight']
 
-                if v not in distances:
-                    distances[v] = float('inf')
+        if v not in distances:
+          distances[v] = float('inf')
 
-                if distances[u] + weight < distances[v]:
-                    distances[v] = distances[u] + weight
-                    previous[v] = u
-                    updated = True
-                    new_nodes.add(v)
-                    all_nodes.add(v)
+        if distances[u] + weight < distances[v]:
+          distances[v] = distances[u] + weight
+          previous[v] = u
+          updated = True
+          new_nodes.add(v)
+          all_nodes.add(v)
 
-        if not updated:
-            break
-        nodes = new_nodes
+    if not updated:
+      break
+    nodes = new_nodes
 
-    # reconstruct path
-    path = []
-    current = target_name
-    while current in previous:
-        prev = previous[current]
-        weight = graph[prev][current]['weight']
-        path.append((current, weight))
-        current = prev
-    if current == start_name:
-        path.append((start_name, 0))
-        path.reverse()
-        return path, distances[target_name]
-    else:
-        return None, float('inf')
+  # reconstruct path
+  path = list()
+  current = target_name
+  while current in previous:
+    prev = previous[current]
+    weight = graph[prev][current]['weight']
+    path.append((current, weight))
+    current = prev
+  if current == start_name:
+    path.append((start_name, 0))
+    path.reverse()
+    return path, distances[target_name]
+  else:
+    return None, float('inf')
 
 def compare_algos(start_name: str, start_admin_name: str, target_name: str, file_name: str):
   
