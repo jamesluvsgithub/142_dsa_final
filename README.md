@@ -1,9 +1,6 @@
-to push code:
-
-git status
-
-git add .
-
-git commit -m "yuor massage"
-
-git push origin main
+# City Walker
+## how to run:
+cd to desired directory in a terminal
+`git clone https://github.com/jamesluvsgithub/142_dsa_final`
+`pip install -r requirements.txt`
+`python script.py`
