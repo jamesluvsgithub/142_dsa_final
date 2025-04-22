@@ -2,6 +2,8 @@ import csv
 import math
 import heapq
 import networkx
+from scipy.spatial import KDTree
+import numpy as np
 # csv from here (free) https://simplemaps.com/data/world-cities
 
 class City:
@@ -45,6 +47,14 @@ def get_all_cities(start_name: str, start_admin_name: str, file_name: str) -> li
   
   return cities
 
+def latlon_to_xyz(lat, lon):
+  lat_rad = math.radians(lat)
+  lon_rad = math.radians(lon)
+  x = math.cos(lat_rad) * math.cos(lon_rad)
+  y = math.cos(lat_rad) * math.sin(lon_rad)
+  z = math.sin(lat_rad)
+  return (x, y, z)
+
 def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> int:
   '''
   used to get distance between points (for edge weights)
@@ -65,19 +75,29 @@ def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> int:
   c = 2 * math.asin(math.sqrt(a))
   return rad * c
 
-def get_neighbors(cities: list, base_city: City):
-  '''
-  given a city, returns a list of cities that are within 1000km from it
+neighbor_cache = dict()  # key: (name, admin_name), value: list of neighbors
 
-  PROBLEM: the algos call this function way too much, which makes them too slow
-  '''
-  close_cities = list()
+EARTH_RADIUS_KM = 6371
 
-  for city in cities:
-    dist = haversine(base_city.latitude, base_city.longitude, city.latitude, city.longitude)
-    if dist < 1000:
-      close_cities.append(city)
-  return close_cities
+def get_neighbors(cities, base_city):
+  key = (base_city.name, base_city.admin_name)
+  if key in neighbor_cache:
+    return neighbor_cache[key]
+
+  base_xyz = latlon_to_xyz(base_city.latitude, base_city.longitude)
+
+  # Calculate angular radius and convert to chord length
+  angular_radius = 1000 / EARTH_RADIUS_KM  # 1000 km in radians
+  chord_radius = 2 * math.sin(angular_radius / 2)
+
+  # Query KDTree
+  indices = tree.query_ball_point(base_xyz, chord_radius)
+  neighbors = [cities[i] for i in indices if cities[i] != base_city]
+
+  neighbor_cache[key] = neighbors
+  return neighbors
+
+
 
 def build_graph(cities: list) -> networkx.Graph:
   '''
@@ -231,16 +251,24 @@ def bellman_ford(graph: networkx.Graph, cities: list, start_name: str, target_na
     return None, float('inf')
 
 def compare_algos(start_name: str, start_admin_name: str, target_name: str, file_name: str):
-  
+  global tree, xyz_coords
   cities = get_all_cities(start_name, start_admin_name, file_name)
+  xyz_coords = [latlon_to_xyz(c.latitude, c.longitude) for c in cities]
+  tree = KDTree(xyz_coords)
   graph = build_graph(cities)
   print('\nusing dijkstra...')
   path, distance = dijkstra(graph, cities, start_name, target_name)
   print(f'shortest path: {path}')
   print(f'total distance: {distance:.2f} km\n')
 
+  neighbor_cache.clear()
+
+
   cities = get_all_cities(start_name, start_admin_name, file_name)
+  xyz_coords = [latlon_to_xyz(c.latitude, c.longitude) for c in cities]
+  tree = KDTree(xyz_coords)
   graph = build_graph(cities)
+
   print('\nusing bellman-ford...')
   path, distance = bellman_ford(graph, cities, start_name, target_name)
   print(f'shortest path: {path}')
