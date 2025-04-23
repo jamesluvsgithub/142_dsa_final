@@ -48,6 +48,9 @@ def get_all_cities(start_name: str, start_admin_name: str, file_name: str) -> li
   return cities
 
 def coords_to_xyz(lat, lon):
+  '''
+  converts latitude and longitude to a point on a unit sphere. this makes computation of distances easier :D
+  '''
   lat_rad = math.radians(lat)
   lon_rad = math.radians(lon)
   x = math.cos(lat_rad) * math.cos(lon_rad)
@@ -71,18 +74,15 @@ def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> int:
   a = (pow(math.sin(dLat / 2), 2) +
     pow(math.sin(dLon / 2), 2) *
       math.cos(lat1) * math.cos(lat2))
-  rad = 6371
+  EARTH_RADIUS_KM = 6371
   c = 2 * math.asin(math.sqrt(a))
-  return rad * c
+  return EARTH_RADIUS_KM * c
 
 neighbor_cache = dict()  # key: (name, admin_name), value: list of neighbors
 '''
 a neighbor cache is used to speed up lookup of edge weights; reduces computation
 '''
-def get_neighbors(cities, base_city):
-  '''
-  fuck
-  '''
+def get_neighbors(cities: list, base_city: City, tree: KDTree, neighbor_cache: dict):
   EARTH_RADIUS_KM = 6371
   key = (base_city.name, base_city.admin_name)
   if key in neighbor_cache:
@@ -90,11 +90,12 @@ def get_neighbors(cities, base_city):
 
   base_xyz = coords_to_xyz(base_city.latitude, base_city.longitude)
 
-  # Calculate angular radius and convert to chord length
+  # calculate angular radius and convert to chord length
   angular_radius = 1000 / EARTH_RADIUS_KM  # 1000 km in radians
   chord_radius = 2 * math.sin(angular_radius / 2)
 
-  # Query KDTree
+  # kd trees are effecient ways to store coordinates in k-d space
+  # they are a binary tree in which each node is a point in k-d space
   indices = tree.query_ball_point(base_xyz, chord_radius)
   neighbors = [cities[i] for i in indices if cities[i] != base_city]
 
@@ -120,80 +121,76 @@ def build_graph(cities: list) -> networkx.Graph:
       cities_new.append(city)
 
   for i, city1 in enumerate(cities_new):
-    for j in range(i + 1, len(cities_new)):  # cleaner loop
+    for j in range(i + 1, len(cities_new)):
       city2 = cities_new[j]
       distance = haversine(city1.latitude, city1.longitude, city2.latitude, city2.longitude)
       if distance <= max_distance_km:
         key1 = (city1.name, city1.admin_name)
         key2 = (city2.name, city2.admin_name)
         graph.add_edge(key1, key2, weight=distance)
-
   return graph
 
 
 
-def dijkstra(graph: networkx.Graph, cities: list, start_name: str, start_admin_name: str, target_name: str, target_admin_name: str):
-    start = (start_name, start_admin_name)
-    target = (target_name, target_admin_name)
-    queue = [(0, start)]
+def dijkstra(graph: networkx.Graph, cities: list, start_name: str, start_admin_name: str, target_name: str, target_admin_name: str, tree: KDTree, neighbor_cache: dict):
+  start = (start_name, start_admin_name)
+  target = (target_name, target_admin_name)
+  queue = [(0, start)]
 
-    distances = {node: float('inf') for node in graph.nodes}
-    distances[start] = 0
+  distances = {node: float('inf') for node in graph.nodes}
+  distances[start] = 0
 
-    previous = dict()
-    visited = set()
+  previous = dict()
+  visited = set()
 
-    while queue:
-        current_dist, current = heapq.heappop(queue)
-        if current in visited:
-            continue
-        visited.add(current)
+  while queue:
+    current_dist, current = heapq.heappop(queue)
+    if current in visited:
+        continue
+    visited.add(current)
 
-        if current == target:
-            break
+    if current == target:
+        break
 
-        current_city = graph.nodes[current]['city_data']
-        neighbors = get_neighbors(cities, current_city)
+    current_city = graph.nodes[current]['city_data']
+    neighbors = get_neighbors(cities, current_city, tree, neighbor_cache)
 
-        for neighbor in neighbors:
-            neighbor_key = (neighbor.name, neighbor.admin_name)
-            if neighbor_key in visited:
-                continue
+    for neighbor in neighbors:
+      neighbor_key = (neighbor.name, neighbor.admin_name)
+      if neighbor_key in visited:
+        continue
 
-            if neighbor_key not in graph:
-                graph.add_node(neighbor_key, city_data=neighbor)
+      if neighbor_key not in graph:
+        graph.add_node(neighbor_key, city_data=neighbor)
 
-            if not graph.has_edge(current, neighbor_key):
-                graph.add_edge(current, neighbor_key, weight=haversine(
-                    current_city.latitude, current_city.longitude,
-                    neighbor.latitude, neighbor.longitude))
+      if not graph.has_edge(current, neighbor_key):
+        graph.add_edge(current, neighbor_key, weight=haversine(
+          current_city.latitude, current_city.longitude,
+          neighbor.latitude, neighbor.longitude))
 
-            distance = graph[current][neighbor_key]['weight']
-            new_dist = current_dist + distance
+      distance = graph[current][neighbor_key]['weight']
+      new_dist = current_dist + distance
 
-            if new_dist < distances.get(neighbor_key, float('inf')):
-                distances[neighbor_key] = new_dist
-                previous[neighbor_key] = current
-                heapq.heappush(queue, (new_dist, neighbor_key))
+      if new_dist < distances.get(neighbor_key, float('inf')):
+        distances[neighbor_key] = new_dist
+        previous[neighbor_key] = current
+        heapq.heappush(queue, (new_dist, neighbor_key))
+  # reconstruct path to return
+  path = []
+  current = target
+  while current in previous:
+    prev = previous[current]
+    weight = graph[prev][current]['weight']
+    path.append((current, weight))
+    current = prev
+  if current == start:
+    path.append((start, 0))
+    path.reverse()
+    return path, distances[target]
+  else:
+    return None, float('inf')
 
-    # Reconstruct path
-    path = []
-    current = target
-    while current in previous:
-        prev = previous[current]
-        weight = graph[prev][current]['weight']
-        path.append((current, weight))
-        current = prev
-    if current == start:
-        path.append((start, 0))
-        path.reverse()
-        return path, distances[target]
-    else:
-        return None, float('inf')
-
-    
-
-def bellman_ford(graph: networkx.Graph, cities: list, start_name: str, start_admin_name: str, target_name: str, target_admin_name: str):
+def bellman_ford(graph: networkx.Graph, cities: list, start_name: str, start_admin_name: str, target_name: str, target_admin_name: str, tree: KDTree, neighbor_cache: dict):
   start_key = (start_name, start_admin_name)
   target_key = (target_name, target_admin_name)
 
@@ -214,7 +211,7 @@ def bellman_ford(graph: networkx.Graph, cities: list, start_name: str, start_adm
       visited.add(u)
 
       current_city = graph.nodes[u]['city_data']
-      neighbors = get_neighbors(cities, current_city)
+      neighbors = get_neighbors(cities, current_city, tree, neighbor_cache)
 
       for neighbor in neighbors:
         v = (neighbor.name, neighbor.admin_name)
@@ -241,8 +238,6 @@ def bellman_ford(graph: networkx.Graph, cities: list, start_name: str, start_adm
     if not updated:
       break
     nodes = new_nodes
-
-  # reconstruct path
   path = []
   current = target_key
   while current in previous:
